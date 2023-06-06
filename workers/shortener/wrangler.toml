@@ -1,0 +1,10 @@
+name = "shortener"
+main = "src/index.ts"
+compatibility_date = "2023-03-15"
+
+kv_namespaces = [
+  { binding = "SHORTENER_KV", id = "6073748b7a6843dba9cc058ea28afe78", preview_id = "2ccd067510014b70b2b548d4b55ae269"}
+]
+
+[vars]
+HOST_URL = "https://s.octoptree.xyz"
