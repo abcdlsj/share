@@ -2,6 +2,6 @@ module gresh
 
 go 1.20
 
-require github.com/fsnotify/fsnotify v1.5.1
+require github.com/fsnotify/fsnotify v1.6.0
 
-require golang.org/x/sys v0.0.0-20210630005230-0f9fa26af87c // indirect
+require golang.org/x/sys v0.10.0 // indirect
