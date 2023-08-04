@@ -1,4 +1,4 @@
-module ssh
+module github.com/abcdlsj/share/go/ssh
 
 go 1.20
 

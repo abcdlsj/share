@@ -1,4 +1,4 @@
-module gresh
+module github.com/abcdlsj/share/go/gresh
 
 go 1.20
 

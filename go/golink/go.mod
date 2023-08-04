@@ -1,4 +1,4 @@
-module github.com/abcdlsj/golink
+module github.com/abcdlsj/share/go/golink
 
 go 1.19
 
