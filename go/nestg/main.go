@@ -2,6 +2,7 @@ package main
 
 import (
 	"bufio"
+	"flag"
 	"fmt"
 	"os"
 	"os/exec"
@@ -12,28 +13,49 @@ import (
 
 type Identifier struct {
 	Name      string
-	DockerF   string
+	Docker    DockerFile
 	BuildEnvs []string
 }
 
+type DockerFile struct {
+	From   string
+	Expose string
+	Cmd    string
+	Runs   []string
+}
+
+func (d *DockerFile) String() string {
+	var sb strings.Builder
+	sb.WriteString(fmt.Sprintf("FROM %s\n", d.From))
+	for _, v := range d.Runs {
+		sb.WriteString(fmt.Sprintf("%s\n", v))
+	}
+
+	if d.Expose != "" {
+		sb.WriteString(fmt.Sprintf("EXPOSE %s\n", d.Expose))
+	}
+
+	sb.WriteString(fmt.Sprintf(d.Cmd, "%s"))
+	return sb.String()
+}
+
 var (
-	AlapineIdentifer = Identifier{
+	port    string
+	imgName string
+
+	AlapineI = Identifier{
 		Name: "alpine",
-
-		DockerF: `
-FROM alpine:latest
-
-RUN mkdir /app
-WORKDIR /app
-COPY . .
-
-CMD ["/app/%s"]`,
-
+		Docker: DockerFile{
+			From:   "alpine:latest",
+			Runs:   vec("RUN mkdir /app", "WORKDIR /app", "COPY . ."),
+			Cmd:    "CMD [\"/app/%s\"]",
+			Expose: port,
+		},
 		BuildEnvs: vec("CGO_ENABLED=0", "GOOS=linux"),
 	}
 )
 
-func binName() (string, error) {
+func getBinaryName() (string, error) {
 	dir, err := os.Getwd()
 	if err != nil {
 		return "", err
@@ -64,41 +86,58 @@ func blue(s string) string {
 	return "\033[1;34m" + s + "\033[0m"
 }
 
-func main() {
-	identifier := AlapineIdentifer
-	fmt.Printf("Identifier: %s\n", blue(identifier.Name))
+func orange(s string) string {
+	return "\033[1;33m" + s + "\033[0m"
+}
 
-	binName, err := binName()
+func init() {
+	flag.StringVar(&port, "p", "", "port")
+	flag.StringVar(&imgName, "i", "", "image name")
+}
+
+func getIdentifier() Identifier {
+	return AlapineI
+}
+
+func main() {
+	flag.Parse()
+	apapine := getIdentifier()
+
+	binName, err := getBinaryName()
 	if err != nil {
-		fmt.Printf("Get binary name error: %s\n", red(err.Error()))
+		fmt.Printf("Scan binary file failed: %s\n", red(err.Error()))
 	}
 
-	imageName := "nestg" + "/" + binName + ":" + time.Now().Format("20060102150405")[8:]
+	if imgName == "" {
+		imgName = "nestg" + "/" + binName + ":" + time.Now().Format("20060102150405")[8:]
+	}
+
+	fmt.Printf("Identifier: %s, Binary: %s, Image: %s\n", blue(apapine.Name), blue(binName), blue(imgName))
 
 	tmpf, err := os.CreateTemp("", "nestg-*.dockerfile")
 	if err != nil {
-		fmt.Printf("Create temp file error: %s\n", red(err.Error()))
+		fmt.Printf("Temp file create error: %s\n", red(err.Error()))
 		return
 	}
 
-	data := fmt.Sprintf(identifier.DockerF, binName)
+	data := fmt.Sprintf(apapine.Docker.String(), binName)
 
 	tmpf.WriteString(data)
 	defer os.Remove(tmpf.Name())
 
-	fmt.Printf("Dockerfile:%s\n", blue(data))
+	fmt.Printf("Dockerfile:\n%s\n", orange(data))
 
 	cmd := exec.Command("go", "build", "-o", binName, ".")
 	cmd.Stdout = os.Stdout
 	cmd.Stderr = os.Stderr
 	cmd.Env = os.Environ()
-	cmd.Env = append(cmd.Env, identifier.BuildEnvs...)
+	cmd.Env = append(cmd.Env, apapine.BuildEnvs...)
 	if err := cmd.Run(); err != nil {
 		fmt.Printf("Build error: %s\n", red(err.Error()))
 		return
 	}
 
-	cmd = exec.Command("docker", "build", "-t", imageName, "-f", tmpf.Name(), ".")
+	cmd = exec.Command("docker", "build", "-t", imgName, "-f", tmpf.Name(), ".")
 	cmd.Stdout = os.Stdout
 	cmd.Stderr = os.Stderr
 	if err := cmd.Run(); err != nil {
@@ -106,8 +145,11 @@ func main() {
 		return
 	}
 
-	fmt.Printf("Image: %s\n", blue(imageName))
-	fmt.Printf("Usage: %s\n" + blue("docker run -it --rm "+imageName))
+	if port != "" {
+		fmt.Printf("Run: %s\n", orange("docker run -it --rm -p "+"port:"+port+" "+imgName))
+		return
+	}
+	fmt.Printf("Run: %s\n", orange("docker run -it --rm "+imgName))
 }
 
 func vec(s ...string) []string {
