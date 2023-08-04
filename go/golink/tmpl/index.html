@@ -1,0 +1,39 @@
+<!DOCTYPE html>
+<html>
+
+<head>
+	<title>Go Link</title>
+	<link rel="stylesheet" type="text/css" href="/static/style.css" />
+	<link rel="shortcut icon" href="/static/favicon.ico" />
+</head>
+
+<body>
+	<form method="POST" action="/">
+		<label for="short" class="form label go">go/</label>
+		<input type="text" id="short" name="short" size="15" placeholder="Short link" required />
+		<input type="text" id="long" name="long" size="40" placeholder="Long link" required />
+		<button type="submit">Create</button>
+	</form>
+	
+	<h1>Go Links</h1>
+	<table>
+		<thead>
+			<tr>
+				<th>Short</th>
+				<th>Long</th>
+				<th>Redirects</th>
+			</tr>
+		</thead>
+		<tbody>
+			{{range .links}}
+			<tr>
+				<td><a href="/{{.Short}}">{{.Short}}</a></td>
+				<td>{{.Long}}</td>
+				<td>{{.Redirects}}</td>
+			</tr>
+			{{end}}
+		</tbody>
+	</table>
+</body>
+
+</html>
