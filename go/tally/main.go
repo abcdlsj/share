@@ -1,6 +1,7 @@
 package main
 
 import (
+	"bufio"
 	"bytes"
 	"fmt"
 	"os"
@@ -53,7 +54,7 @@ var result *Result
 
 func main() {
 	if len(os.Args) < 2 {
-		fmt.Println("Usage: ./main <path>")
+		fmt.Println("Usage: tally <path>")
 		os.Exit(1)
 	}
 
@@ -107,11 +108,12 @@ func (r *Result) Add(c Counter, item Item) {
 }
 
 func (r *Result) String() {
-	itemF := "%-10s %10d %10d %10d %10d %10d\n"
-	headerF := "%-10s %10s %10s %10s %10s %10s\n"
-	fmt.Printf(strings.Repeat("━", 65) + "\n")
+	itemF := " %-10s %10d %10d %10d %10d %10d \n"
+	headerF := " %-10s %10s %10s %10s %10s %10s \n"
+	borderLen := 67
+	fmt.Printf(strings.Repeat("━", borderLen) + "\n")
 	fmt.Printf(headerF, "Language", "Files", "Lines", "Code", "Comments", "Blanks")
-	fmt.Printf(strings.Repeat("━", 65) + "\n")
+	fmt.Printf(strings.Repeat("━", borderLen) + "\n")
 
 	var total Item
 
@@ -127,9 +129,9 @@ func (r *Result) String() {
 		fmt.Printf(itemF, item.lang, item.files, item.lines, item.code, item.comment, item.blank)
 	}
 
-	fmt.Printf(strings.Repeat("━", 65) + "\n")
+	fmt.Printf(strings.Repeat("━", borderLen) + "\n")
 	fmt.Printf(itemF, "Total", total.files, total.lines, total.code, total.comment, total.blank)
-	fmt.Printf(strings.Repeat("━", 65) + "\n")
+	fmt.Printf(strings.Repeat("━", borderLen) + "\n")
 }
 
 func (c Counter) isComment(s []byte) bool {
@@ -141,37 +143,37 @@ func guessLang(file string) Counter {
 }
 
 func countLine(path string) error {
-	data, err := os.ReadFile(path)
+	f, err := os.Open(path)
+	scanner := bufio.NewScanner(f)
 	if err != nil {
 		return err
 	}
+	defer f.Close()
 
 	c := guessLang(path)
-
 	if c.lang == "" {
 		return nil
 	}
 
-	lines := bytes.Split(data, []byte("\n"))
-
 	item := Item{
 		lang:  c.lang,
-		lines: len(lines),
 		files: 1,
 	}
 
-	for _, line := range lines {
-		line := bytes.TrimSpace(line)
+	for scanner.Scan() {
+		item.lines++
+		if isBinary(scanner.Bytes()) {
+			return nil
+		}
+		line := bytes.TrimSpace(scanner.Bytes())
 		if len(line) == 0 {
 			item.blank++
 			continue
 		}
-
 		if c.isComment(line) {
 			item.comment++
 			continue
 		}
-
 		item.code++
 	}
 
@@ -188,4 +190,14 @@ func or(a, b string) string {
 		return b
 	}
 	return a
+}
+
+func isBinary(buffer []byte) bool {
+	for _, b := range buffer {
+		if b == 0 || (b < 32 && b != 9 && b != 10 && b != 13) {
+			return true
+		}
+	}
+
+	return false
 }
