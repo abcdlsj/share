@@ -11,27 +11,28 @@ import (
 )
 
 type Counter struct {
-	idx     int
-	lang    string
-	comment string
-	exts    []string
+	idx              int
+	lang             string
+	comment          string
+	multiLineComment []string
+	exts             []string
 }
 
 var (
-	Go       = Counter{1, "Go", "//", vec(".go")}
-	Rust     = Counter{2, "Rust", "//", vec(".rs")}
-	Java     = Counter{3, "Java", "//", vec(".java")}
-	Python   = Counter{4, "Python", "#", vec(".py")}
-	C        = Counter{5, "C", "//", vec(".c", ".h")}
-	Cpp      = Counter{6, "C++", "//", vec(".cpp", ".hpp")}
-	Js       = Counter{7, "Javascript", "//", vec(".js")}
-	Ts       = Counter{8, "Typescript", "//", vec(".ts")}
-	HTML     = Counter{9, "HTML", "//", vec(".html", ".htm")}
-	JSON     = Counter{10, "JSON", "//", vec(".json")}
-	Protobuf = Counter{11, "Protobuf", "//", vec(".proto")}
-	Markdown = Counter{12, "Markdown", "//", vec(".md")}
-	Shell    = Counter{13, "Shell", "#", vec(".sh")}
-	YAML     = Counter{14, "YAML", "#", vec(".yaml", ".yml")}
+	Go       = Counter{1, "Go", "//", vec("/*", "*/"), vec(".go")}
+	Rust     = Counter{2, "Rust", "//", nil, vec(".rs")}
+	Java     = Counter{3, "Java", "//", nil, vec(".java")}
+	Python   = Counter{4, "Python", "#", nil, vec(".py")}
+	C        = Counter{5, "C", "//", nil, vec(".c", ".h")}
+	Cpp      = Counter{6, "C++", "//", nil, vec(".cpp", ".hpp")}
+	Js       = Counter{7, "Javascript", "//", nil, vec(".js")}
+	Ts       = Counter{8, "Typescript", "//", nil, vec(".ts")}
+	HTML     = Counter{9, "HTML", "//", nil, vec(".html", ".htm")}
+	JSON     = Counter{10, "JSON", "//", nil, vec(".json")}
+	Protobuf = Counter{11, "Protobuf", "//", nil, vec(".proto")}
+	Markdown = Counter{12, "Markdown", "//", nil, vec(".md")}
+	Shell    = Counter{13, "Shell", "#", nil, vec(".sh")}
+	YAML     = Counter{14, "YAML", "#", nil, vec(".yaml", ".yml")}
 )
 
 var ext2Counter = map[string]Counter{}
@@ -138,6 +139,34 @@ func (c Counter) isComment(s []byte) bool {
 	return bytes.HasPrefix(s, []byte(c.comment))
 }
 
+func (c Counter) isMultiLineComment(s []byte) int {
+	if c.multiLineComment == nil {
+		return 0
+	}
+
+	if bytes.HasPrefix(s, []byte(c.multiLineComment[0])) {
+		return -1
+	}
+
+	if bytes.HasPrefix(s, []byte(c.multiLineComment[1])) {
+		return 1
+	}
+
+	return 0
+}
+
+func (c Counter) toMultiLineCommentEnd(scanner *bufio.Scanner) int {
+	var i int
+	for scanner.Scan() {
+		if n := c.isMultiLineComment(scanner.Bytes()); n != 1 {
+			i++
+			continue
+		}
+		return i
+	}
+	return i
+}
+
 func guessLang(file string) Counter {
 	return ext2Counter[filepath.Ext(file)]
 }
@@ -161,19 +190,28 @@ func countLine(path string) error {
 	}
 
 	for scanner.Scan() {
-		item.lines++
 		if isBinary(scanner.Bytes()) {
 			return nil
 		}
+
+		item.lines++
 		line := bytes.TrimSpace(scanner.Bytes())
+
 		if len(line) == 0 {
 			item.blank++
 			continue
 		}
+
 		if c.isComment(line) {
 			item.comment++
 			continue
+		} else if n := c.isMultiLineComment(line); n == -1 {
+			l := c.toMultiLineCommentEnd(scanner)
+			item.comment += l + 2
+			item.lines += l + 1
+			continue
 		}
+
 		item.code++
 	}
 
