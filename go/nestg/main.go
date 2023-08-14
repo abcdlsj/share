@@ -9,6 +9,8 @@ import (
 	"path"
 	"strings"
 	"time"
+
+	"github.com/abcdlsj/cr"
 )
 
 type Identifier struct {
@@ -80,18 +82,6 @@ func getBinaryName() (string, error) {
 	return path.Base(dir), nil
 }
 
-func red(s string) string {
-	return "\033[1;31m" + s + "\033[0m"
-}
-
-func blue(s string) string {
-	return "\033[1;34m" + s + "\033[0m"
-}
-
-func orange(s string) string {
-	return "\033[1;33m" + s + "\033[0m"
-}
-
 func init() {
 	flag.StringVar(&exposePort, "p", "", "port")
 	flag.StringVar(&dImgName, "i", "", "image name")
@@ -108,18 +98,18 @@ func main() {
 
 	binName, err := getBinaryName()
 	if err != nil {
-		fmt.Printf("Scan binary file failed: %s\n", red(err.Error()))
+		fmt.Printf("Scan binary file failed: %s\n", cr.PLRed(err.Error()))
 	}
 
 	if dImgName == "" {
 		dImgName = "nestg" + "/" + binName + ":" + time.Now().Format("20060102150405")[8:]
 	}
 
-	fmt.Printf("Identifier: %s, Binary: %s, Image: %s\n", blue(apapine.Name), blue(binName), blue(dImgName))
+	fmt.Printf("Identifier: %s, Binary: %s, Image: %s\n", cr.PLBlue(apapine.Name), cr.PLBlue(binName), cr.PLBlue(dImgName))
 
 	tmpf, err := os.CreateTemp("", "nestg-*.dockerfile")
 	if err != nil {
-		fmt.Printf("Temp file create error: %s\n", red(err.Error()))
+		fmt.Printf("Temp file create error: %s\n", cr.PLRed(err.Error()))
 		return
 	}
 
@@ -128,7 +118,7 @@ func main() {
 	tmpf.WriteString(data)
 	defer os.Remove(tmpf.Name())
 
-	fmt.Printf("Dockerfile:\n%s\n", orange(data))
+	fmt.Printf("Dockerfile:\n%s\n", cr.PLYellow(data))
 
 	cmd := exec.Command("go", "build", "-o", binName, ".")
 	if goLdflag != "" {
@@ -139,7 +129,7 @@ func main() {
 	cmd.Env = os.Environ()
 	cmd.Env = append(cmd.Env, apapine.BuildEnvs...)
 	if err := cmd.Run(); err != nil {
-		fmt.Printf("Build error: %s\n", red(err.Error()))
+		fmt.Printf("Build error: %s\n", cr.PLRed(err.Error()))
 		return
 	}
 
@@ -147,15 +137,15 @@ func main() {
 	cmd.Stdout = os.Stdout
 	cmd.Stderr = os.Stderr
 	if err := cmd.Run(); err != nil {
-		fmt.Printf("Build image error: %s\n", red(err.Error()))
+		fmt.Printf("Build image error: %s\n", cr.PLRed(err.Error()))
 		return
 	}
 
 	if exposePort != "" {
-		fmt.Printf("Run: %s\n", orange("docker run -it --rm -p "+"port:"+exposePort+" "+dImgName))
+		fmt.Printf("Run: %s\n", cr.PLYellow("docker run -it --rm -p "+"port:"+exposePort+" "+dImgName))
 		return
 	}
-	fmt.Printf("Run: %s\n", orange("docker run -it --rm "+dImgName))
+	fmt.Printf("Run: %s\n", cr.PLYellow("docker run -it --rm "+dImgName))
 }
 
 func vec(s ...string) []string {
