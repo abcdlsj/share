@@ -40,10 +40,11 @@ func init() {
 func main() {
 	flag.Parse()
 
-	sift(dir, search)
-}
+	if search == "" {
+		fmt.Println("search string is empty")
+		return
+	}
 
-func sift(dir, search string) {
 	filepath.WalkDir(dir, func(path string, d fs.DirEntry, err error) error {
 		if err != nil {
 			return err
