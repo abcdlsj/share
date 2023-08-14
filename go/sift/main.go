@@ -10,6 +10,8 @@ import (
 	"path/filepath"
 	"strconv"
 	"strings"
+
+	"github.com/abcdlsj/cr"
 )
 
 var (
@@ -82,10 +84,10 @@ func scan(path string) error {
 		}
 		if bytes.Contains(scanner.Bytes(), []byte(search)) {
 			if !pfile {
-				fmt.Printf("%s\n", blue(path))
+				fmt.Printf("%s\n", cr.PLBlue(path))
 				pfile = true
 			}
-			fmt.Printf("%s: %s\n", green(strconv.Itoa(i+1)), redContain(scanner.Text(), string(search)))
+			fmt.Printf("%s: %s\n", cr.PLGreen(strconv.Itoa(i+1)), redContain(scanner.Text(), string(search)))
 		}
 		i++
 	}
@@ -104,17 +106,5 @@ func isBinary(buffer []byte) bool {
 }
 
 func redContain(s, sub string) string {
-	return strings.ReplaceAll(s, sub, blodRed(sub))
-}
-
-func blue(s string) string {
-	return "\033[34m" + s + "\033[0m"
-}
-
-func green(s string) string {
-	return "\033[32m" + s + "\033[0m"
-}
-
-func blodRed(s string) string {
-	return "\033[1;31m" + s + "\033[0m"
+	return strings.ReplaceAll(s, sub, cr.PLRedBold(sub))
 }
