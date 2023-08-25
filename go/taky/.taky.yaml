@@ -1,0 +1,14 @@
+vars:
+  OS: $(uname -s)
+  ARCH: $(uname -m)
+tasks:
+  printos:
+    cmds:
+      - echo ${OS} ${ARCH}
+  print-goenv:
+    pres:
+      - printos
+    vars:
+      GOPATH: $(go env GOPATH)
+    cmds:
+      - echo ${GOPATH}
