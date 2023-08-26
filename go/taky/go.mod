@@ -1,4 +1,4 @@
-module taky
+module github.com/abcdlsj/share/go/taky
 
 go 1.20
 
