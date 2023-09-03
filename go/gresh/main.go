@@ -9,9 +9,11 @@ import (
 	"os/exec"
 	"path/filepath"
 	"regexp"
+	"strconv"
 	"strings"
 	"time"
 
+	"github.com/abcdlsj/cr"
 	"github.com/fsnotify/fsnotify"
 )
 
@@ -41,7 +43,8 @@ func init() {
 }
 
 func main() {
-	fmt.Printf("workdir: <%s>\npath: <%s>\ncommand: <%s>\nignore: <%s>\ninterval: <%d>\n", wd, path, command, ignore, interval)
+	fmt.Printf("workdir: %s\npath: %s\ncommand: %s\nignore: %s\ninterval: %s\n\n", cr.PLBlue(wd), cr.PLBlue(path), cr.PLBlue(command), cr.PLBlue(ignore), cr.PLBlue(strconv.FormatInt(interval, 10)))
+
 	fmt.Println("start watching...")
 	watcher, _ := fsnotify.NewWatcher()
 	defer watcher.Close()
@@ -50,10 +53,10 @@ func main() {
 
 	go watch(watcher)
 
-	err := watcher.Add(filepath.Join(wd, path))
-	if err != nil {
+	if err := watcher.Add(path); err != nil {
 		log.Fatalf("add watcher error: %v", err.Error())
 	}
+
 	<-wait
 }
 
@@ -71,6 +74,7 @@ func shouldRun(path string, op fsnotify.Op) bool {
 func run() {
 	for range startRun {
 		st := time.Now()
+
 		ss := strings.Split(command, " ")
 		cmd := exec.Command(ss[0], ss[1:]...)
 		cmd.Dir = filepath.Dir(filepath.Join(wd, path))
@@ -80,8 +84,10 @@ func run() {
 			log.Fatalf("run command error: %v", err.Error())
 			return
 		}
-		log.Printf("successed gresh: %s, workdir: %s, cost: %s\n", cmd.String(), cmd.Dir, time.Since(st))
+
+		log.Printf("successed gresh: %s, workdir: %s, cost: %s\n", cr.PLBlue(command), cr.PLBlue(cmd.Dir), cr.PLBlue(time.Since(st).String()))
 		log.Println(stdOut.String())
+
 		flushEvents()
 	}
 }
