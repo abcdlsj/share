@@ -28,12 +28,8 @@ var (
 		},
 	}
 
-	tmpl *template.Template
-)
-
-func init() {
 	tmpl = template.Must(template.New("article.html").Funcs(funcMap).ParseFS(tmplFiles, "article.html", "index.html"))
-}
+)
 
 func main() {
 	http.HandleFunc("/", index)
