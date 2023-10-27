@@ -2,7 +2,10 @@ module github.com/abcdlsj/share/go/readability
 
 go 1.20
 
-require github.com/go-shiori/go-readability v0.0.0-20230421032831-c66949dfc0ad
+require (
+	github.com/go-shiori/go-readability v0.0.0-20230421032831-c66949dfc0ad
+	github.com/gorilla/mux v1.8.0
+)
 
 require (
 	github.com/andybalholm/cascadia v1.3.2 // indirect
