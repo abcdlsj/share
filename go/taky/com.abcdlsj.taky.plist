@@ -1,0 +1,27 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+
+  <key>Label</key>
+  <string>com.abcdlsj.taky</string>
+
+  <key>ProgramArguments</key>
+  <array>
+    <string>{{ .BinFile }}</string>
+    <string>-d</string>
+    <string>-c</string>
+    <string>{{ .CfgFile }}</string>
+  </array>
+
+  <key>WorkingDirectory</key>
+  <string>/</string>
+  <key>StandardOutPath</key>
+  <string>{{ .HomeDir }}/.config/taky/taky.log</string>
+  <key>KeepAlive</key>
+  <true/>
+  <key>RunAtLoad</key>
+  <true/>
+
+</dict>
+</plist>

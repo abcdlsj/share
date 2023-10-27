@@ -10,5 +10,11 @@ tasks:
       - printos
     vars:
       GOPATH: $(go env GOPATH)
+      GOBIN: $(go env GOROOT)
     cmds:
-      - echo ${GOPATH}
+      - echo GOPATH ${GOPATH}
+      - echo GOROOT ${GOROOT}
+  cron-printos:
+    cron: "*/1 * * * *"
+    cmds:
+      - echo ${OS} ${ARCH}
