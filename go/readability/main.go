@@ -33,6 +33,8 @@ var (
 		},
 	}
 
+	artsCache = make(map[string]article)
+
 	tmpl = template.Must(template.New("article.html").Funcs(funcMap).ParseFS(tmplFiles, "article.html", "index.html"))
 )
 
@@ -95,13 +97,21 @@ func readHandler(w http.ResponseWriter, r *http.Request) {
 
 	uri = unescape(uri)
 
-	art, err := readability.FromURL(uri, 30*time.Second)
-	if err != nil {
-		render(w, article{URL: uri, ErrMsg: err.Error()})
-		return
+	render(w, readabyFormURL(uri))
+}
+
+func readabyFormURL(uri string) article {
+	if cache, ok := artsCache[uri]; ok {
+		return cache
 	}
 
-	render(w, article{URL: uri, Title: art.Title, Content: art.Content})
+	art, err := readability.FromURL(uri, 30*time.Second)
+	if err != nil {
+		return article{URL: uri, ErrMsg: err.Error()}
+	}
+
+	artsCache[uri] = article{URL: uri, Title: art.Title, Content: art.Content}
+	return article{URL: uri, Title: art.Title, Content: art.Content}
 }
 
 func render(w http.ResponseWriter, data article) {
