@@ -1,7 +1,10 @@
 package main
 
 import (
+	"crypto/rand"
 	"embed"
+	"encoding/hex"
+	"encoding/json"
 	"html/template"
 	"log"
 	"net/http"
@@ -17,7 +20,13 @@ type article struct {
 	URL     string
 	Title   string
 	Content string
+	Style   string
 	ErrMsg  string
+}
+
+type shareArt struct {
+	Path  string `json:"path"`
+	Style string `json:"style"`
 }
 
 var (
@@ -33,7 +42,8 @@ var (
 		},
 	}
 
-	artsCache = make(map[string]article)
+	artsCache    = make(map[string]article)
+	shareStorage = make(map[string]shareArt)
 
 	tmpl = template.Must(template.New("article.html").Funcs(funcMap).ParseFS(tmplFiles, "article.html", "index.html"))
 )
@@ -47,6 +57,8 @@ func main() {
 	r.HandleFunc("/", indexHandler)
 	r.PathPrefix("/read/").HandlerFunc(readHandler)
 	r.PathPrefix("/read").Methods("POST").HandlerFunc(readRedirectHandler)
+	r.PathPrefix("/share/render/").HandlerFunc(shareRenderHandler)
+	r.PathPrefix("/share").Methods("POST").HandlerFunc(shareHandler)
 
 	log.Fatal(http.ListenAndServe(port(), r))
 }
@@ -71,6 +83,57 @@ func readRedirectHandler(w http.ResponseWriter, r *http.Request) {
 	http.Redirect(w, r, "/read/"+escape(uri), http.StatusSeeOther)
 }
 
+func shareHandler(w http.ResponseWriter, r *http.Request) {
+	var p shareArt
+
+	err := json.NewDecoder(r.Body).Decode(&p)
+	if err != nil {
+		http.Error(w, err.Error(), http.StatusBadRequest)
+		return
+	}
+
+	p.Path = strings.TrimPrefix(p.Path, "/read/")
+	p.Path = unescape(p.Path)
+
+	for uuid, s := range shareStorage {
+		if s.Path == p.Path && s.Style == p.Style {
+			http.Redirect(w, r, "/share/render/"+uuid, http.StatusSeeOther)
+			return
+		}
+	}
+
+	uuid := uuid()
+
+	shareStorage[uuid] = p
+	http.Redirect(w, r, "/share/render/"+uuid, http.StatusSeeOther)
+}
+
+func shareRenderHandler(w http.ResponseWriter, r *http.Request) {
+	uuid := r.URL.EscapedPath()[len("/share/render/"):]
+
+	if uuid == "" {
+		http.NotFound(w, r)
+		return
+	}
+
+	if p, ok := shareStorage[uuid]; ok {
+		art := readabyFormURL(p.Path)
+		art.Style = p.Style
+		render(w, art)
+		return
+	}
+
+	http.NotFound(w, r)
+}
+
+func uuid() string {
+	uuid := make([]byte, 16)
+	_, err := rand.Read(uuid)
+	if err != nil {
+		panic(err)
+	}
+	return strings.ToUpper(hex.EncodeToString(uuid))
+}
 func escape(s string) string {
 	replacer := strings.NewReplacer(
 		"/", "%2F",
