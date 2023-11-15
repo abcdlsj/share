@@ -1,0 +1,62 @@
+<!DOCTYPE html>
+<html>
+
+<head>
+    <title>Ping</title>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <link rel="stylesheet" type="text/css" href="/static/style.css" />
+</head>
+
+<body>
+    <h1>Ping {{.URL}}</h1>
+    <a href="/">Back</a>
+
+    <canvas id="pingChart"> </canvas>
+    <script>
+        function addData(chart, label, newData) {
+            chart.data.labels.push(label);
+            chart.data.datasets.forEach((dataset) => {
+                dataset.data.push(newData);
+            });
+            chart.update();
+        }
+
+        function removeData(chart) {
+            chart.data.labels.pop();
+            chart.data.datasets.forEach((dataset) => {
+                dataset.data.pop();
+            });
+            chart.update();
+        }
+
+        const canvas = document.getElementById("pingChart");
+        canvas.height = 75;
+
+        const pingChart = new Chart(canvas, {
+            type: 'line',
+            data: {
+                labels: [],
+                datasets: [{
+                    label: 'Latency(ms)',
+                    backgroundColor: 'rgb(255, 99, 132)',
+                    borderColor: 'rgb(255, 99, 132)',
+                    data: [0],
+                }]
+            },
+            options: {}
+        });
+
+        setInterval(function () {
+            var uid = {{.Uid}};
+            fetch('/ping/' + uid + '/latest').then((response) => {
+                return response.json();
+            }).then((data) => {
+                const newLabel = new Date().toLocaleTimeString();
+                addData(pingChart, newLabel, data.duration);
+            });
+        }, 1000);
+
+    </script>
+</body>
+
+</html>

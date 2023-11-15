@@ -1,0 +1,67 @@
+<!DOCTYPE html>
+<html>
+
+<head>
+  <title>Uptime Probe</title>
+	<link rel="stylesheet" type="text/css" href="/static/style.css" />
+</head>
+
+<body>
+  <h1>Uptime Probe</h1>
+
+  <form action="/probe/add" method="post">
+    <label for="url">URL:</label>
+    <input type="url" id="url" name="url" required />
+
+    <label for="method">Method:</label>
+    <select id="method" name="method">
+      <option value="GET">GET</option>
+      <option value="POST">POST</option>
+    </select>
+
+    <button type="submit">Add Probe</button>
+  </form>
+
+  <table>
+    <thead>
+      <tr>
+        <th>URL</th>
+        <th>Method</th>
+        <th>Status</th>
+        <th>Duration</th>
+        <th>Ping</th>
+        <th>Action</th>
+      </tr>
+    </thead>
+    <tbody>
+      {{range $uid, $probe := .}}
+      <tr>
+        <td> <a href="{{$probe.URL}}"> {{ $probe.URL }} </a></td>
+        <td>{{ $probe.Method }}</td>
+        <td>
+          {{ with $lastResult := index $probe.Results (sub (len
+          $probe.Results) 1) }} {{ $lastResult.Status }} {{ end }}
+        </td>
+        <td>
+          {{ with $lastResult := index $probe.Results (sub (len
+          $probe.Results) 1) }} {{ $lastResult.Duration }} {{ end }}
+        </td>
+        <td>
+          <form action="/ping/{{$uid}}" method="get">
+            <input type="hidden" name="_method" value="PING" />
+            <button type="ping">Ping</button>
+          </form>
+        </td>
+        <td>
+          <form action="/probe/delete/{{$uid}}" method="post">
+            <input type="hidden" name="_method" value="REMOVE" />
+            <button type="submit">Remove</button>
+          </form>
+        </td>
+      </tr>
+      {{ end }}
+    </tbody>
+  </table>
+</body>
+
+</html>
