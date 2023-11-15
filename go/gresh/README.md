@@ -1,10 +1,19 @@
-# gresh
+# Gresh
 
-```text
+`Gresh` is a CLI tool that can be used to execute commands automatically when `files` are `changed`.
+
+## Usage
+
+**Simple**
+
+```shell
+gresh <your command>
+```
+
+**More options**
+```shell
 ./gresh -p <path> -c <command> -e <exclude pattern> -i <interval seconds>
-```
 
-like this
-```
-./gresh -p test/ -c 'sh test/hello.sh' -e .sh -i 20
+# Like this
+gresh -p 'test' -c 'make' -e '.md' -i 20
 ```

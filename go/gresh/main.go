@@ -43,9 +43,13 @@ func init() {
 }
 
 func main() {
-	fmt.Printf("workdir: %s\npath: %s\ncommand: %s\nignore: %s\ninterval: %s\n\n", cr.PLBlue(wd), cr.PLBlue(path), cr.PLBlue(command), cr.PLBlue(ignore), cr.PLBlue(strconv.FormatInt(interval, 10)))
+	if command == "" {
+		command = strings.Join(os.Args[1:], " ")
+	}
 
-	fmt.Println("start watching...")
+	fmt.Printf("Wdir: %s\nPath: %s\nCommand: %s\nIgnore: %s\nInterval: %s\n\n", cr.PLBlue(wd), cr.PLBlue(path), cr.PLBlue(command), cr.PLBlue(ignore), cr.PLBlue(strconv.FormatInt(interval, 10)))
+
+	fmt.Println("Start watching...")
 	watcher, _ := fsnotify.NewWatcher()
 	defer watcher.Close()
 
@@ -54,7 +58,7 @@ func main() {
 	go watch(watcher)
 
 	if err := watcher.Add(path); err != nil {
-		log.Fatalf("add watcher error: %v", err.Error())
+		log.Fatalf("Add watcher error: %v", err.Error())
 	}
 
 	<-wait
@@ -76,17 +80,22 @@ func run() {
 		st := time.Now()
 
 		ss := strings.Split(command, " ")
-		cmd := exec.Command(ss[0], ss[1:]...)
-		cmd.Dir = filepath.Dir(filepath.Join(wd, path))
+		bin := ss[0]
+		var args []string
+		if len(ss) > 1 {
+			args = ss[1:]
+		}
+		cmd := exec.Command(bin, args...)
+		cmd.Dir = filepath.Clean(wd)
 		var stdOut bytes.Buffer
 		cmd.Stdout = &stdOut
 		if err := cmd.Run(); err != nil {
-			log.Fatalf("run command error: %v", err.Error())
+			log.Fatalf("Run command error: %v", err.Error())
 			return
 		}
 
-		log.Printf("successed gresh: %s, workdir: %s, cost: %s\n", cr.PLBlue(command), cr.PLBlue(cmd.Dir), cr.PLBlue(time.Since(st).String()))
-		log.Println(stdOut.String())
+		log.Printf("Successed: %s, wdir: %s, cost: %s\n", cr.PLBlue(command), cr.PLBlue(cmd.Dir), cr.PLBlue(time.Since(st).String()))
+		log.Println("stdOut:\n" + cr.PLYellow(stdOut.String()))
 
 		flushEvents()
 	}
@@ -121,7 +130,7 @@ func watch(watcher *fsnotify.Watcher) {
 			if !ok {
 				return
 			}
-			log.Printf("have a error: %v", err.Error())
+			log.Printf("Have a error: %v", err.Error())
 		}
 	}
 }
