@@ -25,9 +25,11 @@ type TrackItem struct {
 }
 
 var (
-	filepath              = orEnv("DB_FILE", "timeprogress.db")
-	db                    = initDB(filepath)
-	announceIntervalCheck = orEnv("ANNOUNCE_INTERVAL_CHECK", "true")
+	filepath = orEnv("DB_FILE", "timeprogress.db")
+	db       = initDB(filepath)
+
+	AnnounceIntervalCheckFlag = orEnv("ANNOUNCE_INTERVAL_CHECK", "true")
+	QuietNight                = orEnv("QUIET_NIGHT", "true")
 
 	PASTCELL   = "▓"
 	FUTURECELL = "░"
@@ -64,6 +66,13 @@ func main() {
 		cr := cron.New()
 
 		cr.AddFunc("@every 5m", func() {
+			if QuietNight == "true" {
+				now := time.Now()
+				if now.Hour() < 8 || now.Hour() > 20 {
+					return
+				}
+			}
+
 			var items []TrackItem
 
 			db.Find(&items)
@@ -80,7 +89,7 @@ func main() {
 					continue
 				}
 
-				if announceIntervalCheck == "true" &&
+				if AnnounceIntervalCheckFlag == "true" &&
 					now.Sub(lastAnnounceTime).Hours() < float64(item.AnnounceInterval) {
 					continue
 				}
