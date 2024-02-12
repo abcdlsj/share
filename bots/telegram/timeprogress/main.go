@@ -82,7 +82,7 @@ func main() {
 			for _, item := range items {
 				start, _ := time.Parse("20060102", item.TimeStart)
 				end, _ := time.Parse("20060102", item.TimeEnd)
-				lastAnnounceTime, _ := time.Parse("2006-01-02 15:04:05", item.LastAnnounceTime)
+				lastAnnounceTime, _ := time.ParseInLocation("2006-01-02 15:04:05", item.LastAnnounceTime, time.Local)
 				now := time.Now()
 
 				if end.Before(now) || start.After(now) {
