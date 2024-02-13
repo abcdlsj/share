@@ -35,6 +35,8 @@ var (
 	FUTURECELL = "░"
 
 	cronRunning = false
+
+	timeFormat = "2006-01-02/15:04:05"
 )
 
 func initDB(filepath string) *gorm.DB {
@@ -80,9 +82,9 @@ func main() {
 			needSends := make([]TrackItem, 0)
 
 			for _, item := range items {
-				start, _ := time.Parse("20060102", item.TimeStart)
-				end, _ := time.Parse("20060102", item.TimeEnd)
-				lastAnnounceTime, _ := time.ParseInLocation("2006-01-02 15:04:05", item.LastAnnounceTime, time.Local)
+				start, _ := time.Parse(timeFormat, item.TimeStart)
+				end, _ := time.Parse(timeFormat, item.TimeEnd)
+				lastAnnounceTime, _ := time.ParseInLocation(timeFormat, item.LastAnnounceTime, time.Local)
 				now := time.Now()
 
 				if end.Before(now) || start.After(now) {
@@ -96,12 +98,12 @@ func main() {
 
 				needSends = append(needSends, item)
 
-				db.Model(&item).Update("last_announce_time", now.Format("2006-01-02 15:04:05"))
+				db.Model(&item).Update("last_announce_time", now.Format(timeFormat))
 			}
 
 			for _, item := range needSends {
-				start, _ := time.Parse("20060102", item.TimeStart)
-				end, _ := time.Parse("20060102", item.TimeEnd)
+				start, _ := time.Parse(timeFormat, item.TimeStart)
+				end, _ := time.Parse(timeFormat, item.TimeEnd)
 				now := time.Now()
 
 				bar := renderProgress(start, end, now)
@@ -132,7 +134,7 @@ func main() {
 			TimeStart:        args[1],
 			TimeEnd:          args[2],
 			AnnounceInterval: interval,
-			LastAnnounceTime: time.Now().Format("2006-01-02 15:04:05"),
+			LastAnnounceTime: time.Now().Format(timeFormat),
 		}
 
 		db.Create(&item)
@@ -158,7 +160,7 @@ func main() {
 		ret := "all tracking items:\n"
 
 		for _, item := range items {
-			end, _ := time.Parse("20060102", item.TimeEnd)
+			end, _ := time.Parse(timeFormat, item.TimeEnd)
 			if end.Before(time.Now()) {
 				continue
 			}
