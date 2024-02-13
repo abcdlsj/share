@@ -175,6 +175,24 @@ func main() {
 		return c.Send("cron running: " + strconv.FormatBool(cronRunning))
 	})
 
+	bot.Handle("/announce", func(c tele.Context) error {
+		args := c.Args()
+		if len(args) != 1 {
+			return c.Send("pls use /announce name")
+		}
+
+		var item TrackItem
+
+		db.Where("name = ?", args[0]).First(&item)
+
+		start, _ := time.Parse(timeFormat, item.TimeStart)
+		end, _ := time.Parse(timeFormat, item.TimeEnd)
+
+		bar := renderProgress(start, end, time.Now())
+
+		return c.Send(renderMd(item.Name + "\n" + bar))
+	})
+
 	bot.Start()
 }
 
