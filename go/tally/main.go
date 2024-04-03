@@ -6,8 +6,10 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"runtime"
 	"sort"
 	"strings"
+	"sync"
 )
 
 type Counter struct {
@@ -48,18 +50,29 @@ func init() {
 		}
 	}
 
-	result = NewResult()
+	result = &Result{
+		data: make([]Item, registedNum),
+	}
 }
 
 var result *Result
 
-func main() {
-	if len(os.Args) < 2 {
-		fmt.Println("Usage: tally <path>")
-		os.Exit(1)
+var fileChan = make(chan string, 100)
+
+func process(dir string) {
+	var wg sync.WaitGroup
+	wg.Add(runtime.NumCPU() * 2)
+
+	for i := 0; i < runtime.NumCPU()*2; i++ {
+		go func() {
+			defer wg.Done()
+			for file := range fileChan {
+				countLine(file)
+			}
+		}()
 	}
 
-	filepath.Walk(os.Args[1], func(path string, info os.FileInfo, err error) error {
+	filepath.Walk(dir, func(path string, info os.FileInfo, err error) error {
 		if err != nil {
 			panic(err)
 		}
@@ -68,8 +81,23 @@ func main() {
 			return nil
 		}
 
-		return countLine(path)
+		fileChan <- path
+
+		return nil
 	})
+
+	close(fileChan)
+
+	wg.Wait()
+}
+
+func main() {
+	if len(os.Args) < 2 {
+		fmt.Println("Usage: tally <path>")
+		os.Exit(1)
+	}
+
+	process(os.Args[1])
 
 	result.String()
 }
@@ -95,16 +123,13 @@ func mergeItem(a, b Item) Item {
 }
 
 type Result struct {
+	mu   sync.Mutex
 	data []Item
 }
 
-func NewResult() *Result {
-	return &Result{
-		data: make([]Item, registedNum),
-	}
-}
-
 func (r *Result) Add(c Counter, item Item) {
+	r.mu.Lock()
+	defer r.mu.Unlock()
 	r.data[c.idx-1] = mergeItem(r.data[c.idx-1], item)
 }
 
@@ -172,12 +197,15 @@ func guessLang(file string) Counter {
 }
 
 func countLine(path string) error {
-	f, err := os.Open(path)
-	scanner := bufio.NewScanner(f)
+	f, err := os.ReadFile(path)
 	if err != nil {
 		return err
 	}
-	defer f.Close()
+	scanner := bufio.NewScanner(bytes.NewReader(f))
+
+	if err != nil {
+		return err
+	}
 
 	c := guessLang(path)
 	if c.lang == "" {
