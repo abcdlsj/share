@@ -14,6 +14,13 @@
 		<input type="text" id="url" name="url">
 		<input type="submit" value="Extract">
 	</form>
+
+	<h2>Recents:</h2>
+	<ul>
+		{{range $index, $record := .Recents}}
+			<a href="/read/{{$record}}">{{$record}}</a>
+		{{end}}
+	</ul>
 </body>
 
 </html>
