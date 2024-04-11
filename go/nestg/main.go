@@ -129,9 +129,10 @@ func main() {
 		Docker: DockerFile{
 			Stages: []Stage{
 				{
-					From: "golang:1-alpine AS builder",
+					From: "golang:alpine AS builder",
 					Builds: vec(
 						"RUN apk add --no-cache build-base",
+						"RUN apk --no-cache add ca-certificates",
 						"WORKDIR /build",
 						"COPY . .",
 						genBuildCmd(binName, ldflags),
@@ -143,6 +144,7 @@ func main() {
 					From: "scratch",
 					Builds: vec(
 						"COPY --from=builder /dist /",
+						"COPY --from=builder /etc/ssl/certs/ca-certificates.crt /etc/ssl/certs/",
 					),
 					Expose: exposePort,
 				},
