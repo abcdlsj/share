@@ -61,6 +61,7 @@ func main() {
 	r.HandleFunc("/", indexHandler)
 	r.PathPrefix("/read/").HandlerFunc(readHandler)
 	r.PathPrefix("/read").Methods("POST").HandlerFunc(readRedirectHandler)
+	r.PathPrefix("/delete/").HandlerFunc(deleteHandler)
 
 	log.Fatal(http.ListenAndServe(port(), r))
 }
@@ -92,7 +93,22 @@ func indexHandler(w http.ResponseWriter, r *http.Request) {
 
 func readRedirectHandler(w http.ResponseWriter, r *http.Request) {
 	uri := r.FormValue("url")
-	http.Redirect(w, r, "/read/"+escape(uri), http.StatusSeeOther)
+	http.Redirect(w, r, "/read/"+escape(uri), http.StatusTemporaryRedirect)
+}
+
+func deleteHandler(w http.ResponseWriter, r *http.Request) {
+	uri := r.URL.EscapedPath()[len("/delete/"):]
+
+	if uri == "" {
+		http.NotFound(w, r)
+		return
+	}
+
+	if err := deleteArticle(uri); err != nil {
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+	}
+
+	http.Redirect(w, r, "/", http.StatusTemporaryRedirect)
 }
 
 func escape(s string) string {
@@ -197,4 +213,27 @@ func getLastNArticles(n int) ([]string, error) {
 	}
 
 	return records, nil
+}
+
+func deleteArticle(uri string) error {
+	redisclient.TxPipelined(func(pipe redis.Pipeliner) error {
+		if err := pipe.Del(uri).Err(); err != nil {
+			log.Printf("redis del failed: %s", err.Error())
+			return err
+		}
+
+		if err := pipe.LRem("readability-timequeue", 0, uri).Err(); err != nil {
+			log.Printf("lrem failed: %s", err.Error())
+			return err
+		}
+
+		if err := pipe.ZRem("readability-viewcount", uri).Err(); err != nil {
+			log.Printf("zrem failed: %s", err.Error())
+			return err
+		}
+
+		return nil
+	})
+
+	return nil
 }
