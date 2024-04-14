@@ -18,7 +18,7 @@
 	<h2>Recents:</h2>
 	<ul>
 		{{range $index, $record := .Recents}}
-			<a href="/read/{{$record}}">{{$record}}</a>
+			<li><a href="/read/{{$record}}">{{$record}}</a></li>
 		{{end}}
 	</ul>
 </body>
