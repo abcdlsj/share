@@ -178,9 +178,15 @@ func parseURL(u *url.URL, trimlen int) (string, bool, bool) {
 		query = strings.ReplaceAll(query, "&md=true", "")
 	}
 
-	fmt.Printf("url: %s, nocache: %v, md: %v\n", u.EscapedPath()[trimlen:], nocache, md)
+	uri := u.EscapedPath()[trimlen:]
 
-	return fmt.Sprintf("%s?%s", u.EscapedPath()[trimlen:], query), nocache, md
+	if query != "" {
+		uri = fmt.Sprintf("%s?%s", uri, query)
+	}
+
+	fmt.Printf("url: %s, nocache: %v, md: %v\n", uri, nocache, md)
+
+	return uri, nocache, md
 }
 
 func readabyFormURL(uri string, nocache, md bool) *article {
