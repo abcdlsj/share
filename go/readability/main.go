@@ -120,7 +120,7 @@ func readRedirectHandler(w http.ResponseWriter, r *http.Request) {
 }
 
 func deleteHandler(w http.ResponseWriter, r *http.Request) {
-	uri := r.URL.EscapedPath()[len("/delete/"):]
+	uri, _, _ := parseURL(r.URL, len("/delete/"))
 
 	if uri == "" {
 		http.NotFound(w, r)
@@ -151,7 +151,7 @@ func unescape(s string) string {
 }
 
 func readHandler(w http.ResponseWriter, r *http.Request) {
-	uri := r.URL.EscapedPath()[len("/read/"):]
+	uri, nocache, md := parseURL(r.URL, len("/read/"))
 
 	if uri == "" {
 		http.NotFound(w, r)
@@ -160,16 +160,10 @@ func readHandler(w http.ResponseWriter, r *http.Request) {
 
 	uri = unescape(uri)
 
-	nocache, md, query := filterQuery(r.URL)
-
-	if query != "" {
-		uri = fmt.Sprintf("%s?%s", uri, query)
-	}
-
 	render(w, readabyFormURL(uri, nocache, md))
 }
 
-func filterQuery(u *url.URL) (bool, bool, string) {
+func parseURL(u *url.URL, trimlen int) (string, bool, bool) {
 	nocache, md := false, false
 
 	query := u.RawQuery
@@ -184,14 +178,21 @@ func filterQuery(u *url.URL) (bool, bool, string) {
 		query = strings.ReplaceAll(query, "&md=true", "")
 	}
 
-	return nocache, md, query
+	fmt.Printf("url: %s, nocache: %v, md: %v\n", u.EscapedPath()[trimlen:], nocache, md)
+
+	return fmt.Sprintf("%s?%s", u.EscapedPath()[trimlen:], query), nocache, md
 }
 
-func readabyFormURL(uri string, nocache, md bool) article {
+func readabyFormURL(uri string, nocache, md bool) *article {
+	var art *article
+	var err error
+
 	if !nocache {
-		art, err := getArticleFromCache(uri)
+		defer setArticleToCache(uri, art)
+
+		art, err = getArticleFromCache(uri)
 		if err != nil || art != nil {
-			return *art
+			return art
 		}
 	}
 
@@ -200,7 +201,7 @@ func readabyFormURL(uri string, nocache, md bool) article {
 	if !md {
 		fromdata, err := readability.FromURL(uri, 30*time.Second)
 		if err != nil {
-			return article{URL: uri, ErrMsg: err.Error()}
+			return &article{URL: uri, ErrMsg: err.Error()}
 		}
 
 		title = fromdata.Title
@@ -209,32 +210,31 @@ func readabyFormURL(uri string, nocache, md bool) article {
 		log.Printf("read markdown: %s", uri)
 		data, err := getDataFromURL(uri)
 		if err != nil {
-			return article{URL: uri, ErrMsg: err.Error()}
+			return &article{URL: uri, ErrMsg: err.Error()}
 		}
 		var buf bytes.Buffer
 		context := parser.NewContext()
 		if err := mdparser.Convert(data, &buf, parser.WithContext(context)); err != nil {
-			return article{URL: uri, ErrMsg: err.Error()}
+			return &article{URL: uri, ErrMsg: err.Error()}
 		}
 
 		title = "Readability - MD"
 		content = buf.String()
 	}
 
-	art := article{URL: uri, Title: title, Content: content}
+	art = &article{URL: uri, Title: title, Content: content}
 
-	defer setArticleToCache(uri, art)
 	return art
 }
 
-func render(w http.ResponseWriter, data article) {
+func render(w http.ResponseWriter, data *article) {
 	err := tmpl.ExecuteTemplate(w, "article.html", data)
 	if err != nil {
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 	}
 }
 
-func setArticleToCache(key string, art article) error {
+func setArticleToCache(key string, art *article) error {
 	if LOCAL {
 		return nil
 	}
