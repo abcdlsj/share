@@ -1,12 +1,16 @@
 package main
 
 import (
+	"bytes"
 	"embed"
 	"encoding/json"
 	"errors"
+	"fmt"
 	"html/template"
+	"io"
 	"log"
 	"net/http"
+	"net/url"
 	"os"
 	"strings"
 	"time"
@@ -14,6 +18,12 @@ import (
 	"github.com/go-redis/redis"
 	readability "github.com/go-shiori/go-readability"
 	"github.com/gorilla/mux"
+	"github.com/yuin/goldmark"
+	highlighting "github.com/yuin/goldmark-highlighting"
+	meta "github.com/yuin/goldmark-meta"
+	"github.com/yuin/goldmark/extension"
+	"github.com/yuin/goldmark/parser"
+	"github.com/yuin/goldmark/renderer/html"
 )
 
 type article struct {
@@ -41,6 +51,19 @@ var (
 	REDIS_URL = os.Getenv("REDIS_URL")
 
 	redisclient *redis.Client
+
+	mdparser = goldmark.New(
+		goldmark.WithExtensions(
+			meta.Meta,
+			highlighting.Highlighting,
+			extension.GFM,
+			extension.Footnote,
+		),
+		goldmark.WithParserOptions(parser.WithAutoHeadingID()),
+		goldmark.WithRendererOptions(html.WithHardWraps(), html.WithUnsafe()),
+	)
+
+	LOCAL = os.Getenv("LOCAL") == "true"
 )
 
 func init() {
@@ -137,20 +160,68 @@ func readHandler(w http.ResponseWriter, r *http.Request) {
 
 	uri = unescape(uri)
 
-	render(w, readabyFormURL(uri))
+	nocache, md, query := filterQuery(r.URL)
+
+	if query != "" {
+		uri = fmt.Sprintf("%s?%s", uri, query)
+	}
+
+	render(w, readabyFormURL(uri, nocache, md))
 }
 
-func readabyFormURL(uri string) article {
-	if art, err := getArticleFromCache(uri); err != nil || art != nil {
-		return *art
+func filterQuery(u *url.URL) (bool, bool, string) {
+	nocache, md := false, false
+
+	query := u.RawQuery
+	if u.Query().Get("nocache") == "true" {
+		nocache = true
+
+		query = strings.ReplaceAll(query, "&nocache=true", "")
 	}
 
-	fromdata, err := readability.FromURL(uri, 30*time.Second)
-	if err != nil {
-		return article{URL: uri, ErrMsg: err.Error()}
+	if u.Query().Get("md") == "true" {
+		md = true
+		query = strings.ReplaceAll(query, "&md=true", "")
 	}
 
-	art := article{URL: uri, Title: fromdata.Title, Content: fromdata.Content}
+	return nocache, md, query
+}
+
+func readabyFormURL(uri string, nocache, md bool) article {
+	if !nocache {
+		art, err := getArticleFromCache(uri)
+		if err != nil || art != nil {
+			return *art
+		}
+	}
+
+	title, content := "", ""
+
+	if !md {
+		fromdata, err := readability.FromURL(uri, 30*time.Second)
+		if err != nil {
+			return article{URL: uri, ErrMsg: err.Error()}
+		}
+
+		title = fromdata.Title
+		content = fromdata.Content
+	} else {
+		log.Printf("read markdown: %s", uri)
+		data, err := getDataFromURL(uri)
+		if err != nil {
+			return article{URL: uri, ErrMsg: err.Error()}
+		}
+		var buf bytes.Buffer
+		context := parser.NewContext()
+		if err := mdparser.Convert(data, &buf, parser.WithContext(context)); err != nil {
+			return article{URL: uri, ErrMsg: err.Error()}
+		}
+
+		title = "Readability - MD"
+		content = buf.String()
+	}
+
+	art := article{URL: uri, Title: title, Content: content}
 
 	defer setArticleToCache(uri, art)
 	return art
@@ -164,6 +235,10 @@ func render(w http.ResponseWriter, data article) {
 }
 
 func setArticleToCache(key string, art article) error {
+	if LOCAL {
+		return nil
+	}
+
 	data, err := json.Marshal(art)
 	if err != nil {
 		return err
@@ -175,6 +250,10 @@ func setArticleToCache(key string, art article) error {
 }
 
 func getArticleFromCache(key string) (*article, error) {
+	if LOCAL {
+		return nil, nil
+	}
+
 	var data []byte
 
 	if err := redisclient.Get(key).Scan(&data); err != nil {
@@ -236,4 +315,14 @@ func deleteArticle(uri string) error {
 	})
 
 	return nil
+}
+
+func getDataFromURL(url string) ([]byte, error) {
+	resp, err := http.Get(url)
+	if err != nil {
+		return nil, err
+	}
+	defer resp.Body.Close()
+
+	return io.ReadAll(resp.Body)
 }
