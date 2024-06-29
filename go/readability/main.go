@@ -192,12 +192,19 @@ func parseURL(u *url.URL, trimlen int) (string, bool, bool) {
 func readabyFormURL(uri string, nocache, md bool) *article {
 	var art *article
 	var err error
+	var fromcache bool
+
+	defer func() {
+		// log.Printf("debug, article: %v, err: %v, nocache: %v", art == nil, err == nil, nocache)
+		if err == nil && !fromcache && !nocache && art != nil && art.Content != "" {
+			setArticleToCache(uri, art)
+		}
+	}()
 
 	if !nocache {
-		defer setArticleToCache(uri, art)
-
 		art, err = getArticleFromCache(uri)
 		if err != nil || art != nil {
+			fromcache = true
 			return art
 		}
 	}
@@ -205,7 +212,8 @@ func readabyFormURL(uri string, nocache, md bool) *article {
 	title, content := "", ""
 
 	if !md {
-		fromdata, err := readability.FromURL(uri, 30*time.Second)
+		var fromdata readability.Article
+		fromdata, err = readability.FromURL(uri, 30*time.Second)
 		if err != nil {
 			return &article{URL: uri, ErrMsg: err.Error()}
 		}
@@ -214,13 +222,15 @@ func readabyFormURL(uri string, nocache, md bool) *article {
 		content = fromdata.Content
 	} else {
 		log.Printf("read markdown: %s", uri)
-		data, err := getDataFromURL(uri)
+		var data []byte
+		data, err = getDataFromURL(uri)
 		if err != nil {
 			return &article{URL: uri, ErrMsg: err.Error()}
 		}
 		var buf bytes.Buffer
 		context := parser.NewContext()
-		if err := mdparser.Convert(data, &buf, parser.WithContext(context)); err != nil {
+		err = mdparser.Convert(data, &buf, parser.WithContext(context))
+		if err != nil {
 			return &article{URL: uri, ErrMsg: err.Error()}
 		}
 
