@@ -2,6 +2,7 @@ package main
 
 import (
 	"bytes"
+	"compress/gzip"
 	"embed"
 	"encoding/json"
 	"errors"
@@ -62,8 +63,6 @@ var (
 		goldmark.WithParserOptions(parser.WithAutoHeadingID()),
 		goldmark.WithRendererOptions(html.WithHardWraps(), html.WithUnsafe()),
 	)
-
-	LOCAL = os.Getenv("LOCAL") == "true"
 )
 
 func init() {
@@ -184,7 +183,7 @@ func parseURL(u *url.URL, trimlen int) (string, bool, bool) {
 		uri = fmt.Sprintf("%s?%s", uri, query)
 	}
 
-	fmt.Printf("url: %s, nocache: %v, md: %v\n", uri, nocache, md)
+	log.Printf("url: %s, nocache: %v, md: %v", uri, nocache, md)
 
 	return uri, nocache, md
 }
@@ -195,7 +194,7 @@ func readabyFormURL(uri string, nocache, md bool) *article {
 	var fromcache bool
 
 	defer func() {
-		// log.Printf("debug, article: %v, err: %v, nocache: %v", art == nil, err == nil, nocache)
+		log.Printf("defer readFormURL, article == nil: %v, err == nil: %v, nocache: %v", art == nil, err == nil, nocache)
 		if err == nil && !fromcache && !nocache && art != nil && art.Content != "" {
 			setArticleToCache(uri, art)
 		}
@@ -251,25 +250,28 @@ func render(w http.ResponseWriter, data *article) {
 }
 
 func setArticleToCache(key string, art *article) error {
-	if LOCAL {
-		return nil
-	}
-
 	data, err := json.Marshal(art)
 	if err != nil {
+		log.Printf("failed to marshal article to json: %s", err.Error())
 		return err
 	}
 
-	defer lpushToRedis(key)
+	defer func() {
+		if err := lpushToRedis(key); err != nil {
+			log.Printf("failed to push article to redis queue: %s", err.Error())
+			return
+		}
+	}()
 
-	return redisclient.Set(key, data, 0).Err()
+	if err := redisclient.Set(key, compress(data), 0).Err(); err != nil {
+		log.Printf("failed to set article to redis cache: %s", err.Error())
+		return err
+	}
+
+	return nil
 }
 
 func getArticleFromCache(key string) (*article, error) {
-	if LOCAL {
-		return nil, nil
-	}
-
 	var data []byte
 
 	if err := redisclient.Get(key).Scan(&data); err != nil {
@@ -281,7 +283,7 @@ func getArticleFromCache(key string) (*article, error) {
 	}
 
 	var art article
-	if err := json.Unmarshal(data, &art); err != nil {
+	if err := json.Unmarshal(uncompress(data), &art); err != nil {
 		return &article{URL: key, ErrMsg: err.Error()}, errors.New("failed to unmarshal article from json")
 	}
 
@@ -341,4 +343,39 @@ func getDataFromURL(url string) ([]byte, error) {
 	defer resp.Body.Close()
 
 	return io.ReadAll(resp.Body)
+}
+
+func compress(data []byte) []byte {
+	var cp bytes.Buffer
+	gw := gzip.NewWriter(&cp)
+	_, err := gw.Write(data)
+	if err != nil {
+		log.Printf("failed to compress data: %s", err.Error())
+		return nil
+	}
+	err = gw.Close()
+	if err != nil {
+		log.Printf("failed to close gzip writer: %s", err.Error())
+		return nil
+	}
+
+	return cp.Bytes()
+}
+
+func uncompress(data []byte) []byte {
+	gr, err := gzip.NewReader(bytes.NewReader(data))
+	if err != nil {
+		log.Printf("failed to uncompress data: %s", err.Error())
+		return nil
+	}
+	defer gr.Close()
+
+	var cp bytes.Buffer
+	_, err = cp.ReadFrom(gr)
+	if err != nil {
+		log.Printf("failed to read uncompressed data: %s", err.Error())
+		return nil
+	}
+
+	return cp.Bytes()
 }
