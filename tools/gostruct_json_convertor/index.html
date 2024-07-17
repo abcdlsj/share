@@ -1,0 +1,239 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Go Struct <-> JoSON Converter</title>
+    <style>
+        body {
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            height: 80vh;
+            font-family: Arial, sans-serif;
+            flex-direction: column;
+            margin: 0;
+        }
+
+        .header,
+        .footer {
+            width: 100%;
+            text-align: center;
+            padding: 10px;
+            background-color: #f8f9fa;
+            box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+        }
+
+        .footer {
+            position: fixed;
+            bottom: 0;
+        }
+
+        .container {
+            flex: 1;
+        }
+
+        .container {
+            display: flex;
+            flex-direction: row;
+            width: 80%;
+            height: 80%;
+            border: 1px solid #ccc;
+            box-shadow: 0 0 10px rgba(0, 0, 0, 0.1);
+        }
+
+        .textarea-container {
+            flex: 1;
+            margin: 10px;
+            display: flex;
+            flex-direction: column;
+            position: relative;
+        }
+
+        textarea {
+            flex: 1;
+            padding: 10px;
+            font-size: 16px;
+            border: 1px solid #ccc;
+            border-radius: 4px;
+            resize: none;
+        }
+
+        button {
+            padding: 10px;
+            font-size: 16px;
+            margin-top: 10px;
+            cursor: pointer;
+            background-color: #007BFF;
+            color: white;
+            border: none;
+            border-radius: 4px;
+        }
+
+        .copy-button {
+            position: absolute;
+            top: 10px;
+            right: 10px;
+            padding: 5px 10px;
+            font-size: 14px;
+            cursor: pointer;
+            background-color: #28A745;
+            color: white;
+            border: none;
+            border-radius: 4px;
+        }
+
+        .copy-button:hover,
+        button:hover {
+            background-color: #0056b3;
+        }
+    </style>
+</head>
+
+<body>
+    <div class="header">
+        <h1>Go Struct <-> JSON Converter</h1>
+    </div>
+    <div class="container">
+        <div class="textarea-container">
+            <textarea id="goStructText" placeholder="Enter Go struct here..."></textarea>
+            <button class="copy-button" onclick="copyToClipboard()">Copy</button>
+            <button onclick="convertStructToJson()">Convert to JSON</button>
+        </div>
+        <div class="textarea-container">
+            <textarea id="jsonText" placeholder="Output JSON will appear here..."></textarea>
+            <button class="copy-button" onclick="copyToClipboard()">Copy</button>
+            <button onclick="convertJsonToStruct()">Convert to Go Struct</button>
+        </div>
+    </div>
+    <div class="footer">
+        <p>&copy; 2024 - <a href="https://github.com/abcdlsj">abcdlsj</a></p>
+    </div>
+
+    <script>
+        function toSnakeCase(str) {
+            return str.replace(/([A-Z])/g, letter => `_${letter.toLowerCase()}`).replace(/^_/, '');
+        }
+
+        function convertStructToJson() {
+            const input = document.getElementById('goStructText').value;
+            const lines = input.split('\n');
+            const result = {};
+
+            lines.forEach(line => {
+                if (line.trim().startsWith('type')) {
+                    return;
+                }
+
+                const match = line.match(/^\s*(\w+)\s+(\w+)/);
+                if (match) {
+                    const fieldName = toSnakeCase(match[1]);
+                    const fieldType = match[2];
+
+                    switch (fieldType) {
+                        case 'string' || '*string':
+                            result[fieldName] = '';
+                            break;
+                        case 'int' || '*int':
+                        case 'int8' || '*int8':
+                        case 'int16' || '*int16':
+                        case 'int32' || '*int32':
+                        case 'int64' || '*int64':
+                        case 'uint' || '*uint':
+                        case 'uint8' || '*uint8':
+                        case 'uint16' || '*uint16':
+                        case 'uint32' || '*uint32':
+                        case 'uint64' || '*uint64':
+                            result[fieldName] = 0;
+                            break;
+                        case 'float32' || '*float32':
+                        case 'float64' || '*float64':
+                            result[fieldName] = 0.0;
+                            break;
+                        case 'bool' || '*bool':
+                            result[fieldName] = false;
+                            break;
+                        default:
+                            result[fieldName] = null;
+                    }
+                }
+            });
+
+            document.getElementById('jsonText').value = JSON.stringify(result, null, 2);
+        }
+
+        function copyToClipboard() {
+            const jsonText = document.getElementById('jsonText');
+            jsonText.select();
+            jsonText.setSelectionRange(0, 99999); // For mobile devices
+            document.execCommand("copy");
+
+            const copyButton = document.querySelector('.copy-button');
+            copyButton.textContent = 'Copied';
+
+            // Reset the button text after a short delay
+            setTimeout(() => {
+                copyButton.textContent = 'Copy';
+            }, 2000);
+        }
+
+        function convertJsonToStruct() {
+            const inputJson = document.getElementById('jsonText').value;
+            let parsedJson;
+            try {
+                parsedJson = JSON.parse(inputJson);
+            } catch (error) {
+                alert("Invalid JSON format");
+                return;
+            }
+
+            const keys = Object.keys(parsedJson);
+            let goStructText = 'type YourStructName struct {\n';
+
+            keys.forEach(key => {
+                goStructText += `    ${key.charAt(0).toUpperCase() + key.slice(1)} `;
+                const fieldType = typeof parsedJson[key];
+                switch (fieldType) {
+                    case 'string':
+                        goStructText += 'string\n';
+                        break;
+                    case 'number':
+                        if (Number.isInteger(parsedJson[key])) {
+                            goStructText += 'int\n';
+                        } else {
+                            goStructText += 'float64\n'; // Default to float64 for numbers
+                        }
+                        break;
+                    case 'boolean':
+                        goStructText += 'bool\n';
+                        break;
+                    default:
+                        goStructText += 'interface{}\n';
+                }
+            });
+
+            goStructText += '}';
+            document.getElementById('goStructText').value = goStructText;
+        }
+
+        function copyStructToClipboard() {
+            const goStructText = document.getElementById('goStructText');
+            goStructText.select();
+            goStructText.setSelectionRange(0, 99999); // For mobile devices
+            document.execCommand("copy");
+
+            const copyButton = document.querySelectorAll('.copy-button')[1]; // Second copy button
+            copyButton.textContent = 'Copied';
+
+            // Reset the button text after a short delay
+            setTimeout(() => {
+                copyButton.textContent = 'Copy';
+            }, 2000);
+        }
+    </script>
+
+</body>
+
+</html>
+

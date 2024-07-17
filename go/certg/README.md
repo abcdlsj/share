@@ -1,3 +1,0 @@
-# certg
-
-`cert maker`
