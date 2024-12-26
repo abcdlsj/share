@@ -6,6 +6,7 @@ require (
 	github.com/go-redis/redis v6.15.9+incompatible
 	github.com/go-shiori/go-readability v0.0.0-20230421032831-c66949dfc0ad
 	github.com/gorilla/mux v1.8.0
+	github.com/iancoleman/strcase v0.3.0
 	github.com/yuin/goldmark v1.4.13
 	github.com/yuin/goldmark-highlighting v0.0.0-20220208100518-594be1970594
 	github.com/yuin/goldmark-meta v1.1.0

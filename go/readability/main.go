@@ -13,12 +13,14 @@ import (
 	"net/http"
 	"net/url"
 	"os"
+	"path/filepath"
 	"strings"
 	"time"
 
 	"github.com/go-redis/redis"
 	readability "github.com/go-shiori/go-readability"
 	"github.com/gorilla/mux"
+	"github.com/iancoleman/strcase"
 	"github.com/yuin/goldmark"
 	highlighting "github.com/yuin/goldmark-highlighting"
 	meta "github.com/yuin/goldmark-meta"
@@ -163,27 +165,41 @@ func readHandler(w http.ResponseWriter, r *http.Request) {
 }
 
 func parseURL(u *url.URL, trimlen int) (string, bool, bool) {
-	nocache, md := false, false
+	log.Printf("original url: %s, raw query: %s", u.String(), u.RawQuery)
 
-	query := u.RawQuery
-	if u.Query().Get("nocache") == "true" {
-		nocache = true
+	path := u.EscapedPath()[trimlen:]
+	parts := strings.SplitN(path, "&", 2)
+	uri := parts[0]
 
-		query = strings.ReplaceAll(query, "&nocache=true", "")
+	var queryStr string
+	if len(parts) > 1 {
+		queryStr = parts[1]
+	}
+	if u.RawQuery != "" {
+		if queryStr != "" {
+			queryStr += "&"
+		}
+		queryStr += u.RawQuery
 	}
 
-	if u.Query().Get("md") == "true" {
-		md = true
-		query = strings.ReplaceAll(query, "&md=true", "")
+	query, err := url.ParseQuery(queryStr)
+	if err != nil {
+		log.Printf("failed to parse query: %s", err)
+		return uri, false, false
 	}
 
-	uri := u.EscapedPath()[trimlen:]
+	nocache := query.Get("nocache") == "true"
+	md := query.Get("md") == "true"
 
-	if query != "" {
-		uri = fmt.Sprintf("%s?%s", uri, query)
+	query.Del("nocache")
+	query.Del("md")
+
+	if len(query) > 0 {
+		uri = fmt.Sprintf("%s?%s", uri, query.Encode())
 	}
 
-	log.Printf("url: %s, nocache: %v, md: %v", uri, nocache, md)
+	log.Printf("parsed result - url: %s, nocache: %v, md: %v", uri, nocache, md)
+	log.Printf("remaining query params: %v", query)
 
 	return uri, nocache, md
 }
@@ -194,7 +210,7 @@ func readabyFormURL(uri string, nocache, md bool) *article {
 	var fromcache bool
 
 	defer func() {
-		log.Printf("defer readFormURL, article == nil: %v, err == nil: %v, nocache: %v", art == nil, err == nil, nocache)
+		log.Printf("defer readFormURL, article == nil: %v, err: %v, nocache: %v", art == nil, err, nocache)
 		if err == nil && !fromcache && !nocache && art != nil && art.Content != "" {
 			setArticleToCache(uri, art)
 		}
@@ -226,15 +242,21 @@ func readabyFormURL(uri string, nocache, md bool) *article {
 		if err != nil {
 			return &article{URL: uri, ErrMsg: err.Error()}
 		}
-		var buf bytes.Buffer
-		context := parser.NewContext()
-		err = mdparser.Convert(data, &buf, parser.WithContext(context))
+
+		dtitle, mdContent, err := parseMarkdownContent(uri, data)
 		if err != nil {
 			return &article{URL: uri, ErrMsg: err.Error()}
 		}
 
-		title = "Readability - MD"
+		var buf bytes.Buffer
+		context := parser.NewContext()
+		err = mdparser.Convert([]byte(mdContent), &buf, parser.WithContext(context))
+		if err != nil {
+			return &article{URL: uri, ErrMsg: err.Error()}
+		}
+
 		content = buf.String()
+		title = dtitle
 	}
 
 	art = &article{URL: uri, Title: title, Content: content}
@@ -378,4 +400,53 @@ func uncompress(data []byte) []byte {
 	}
 
 	return cp.Bytes()
+}
+
+func parseMarkdownContent(uri string, data []byte) (title string, content string, err error) {
+	if strings.Contains(uri, "r.jina.ai") {
+		text := string(data)
+
+		lines := strings.Split(text, "\n")
+
+		var contentStart int
+		for i, line := range lines {
+			if strings.HasPrefix(line, "Title:") {
+				title = strings.TrimSpace(strings.TrimPrefix(line, "Title:"))
+			}
+			if strings.HasPrefix(line, "Markdown Content:") {
+				contentStart = i + 1
+				break
+			}
+		}
+
+		if title == "" {
+			title = "Readability - MD"
+		}
+
+		if contentStart > 0 && contentStart < len(lines) {
+			content = strings.Join(lines[contentStart:], "\n")
+		} else {
+			content = text
+		}
+	}
+
+	if title == "" {
+		parsedURL, err := url.Parse(uri)
+		if err == nil {
+			parts := strings.Split(parsedURL.Path, "/")
+			if len(parts) > 0 {
+				lastPart := parts[len(parts)-1]
+
+				lastPart = strings.TrimSuffix(lastPart, filepath.Ext(lastPart))
+
+				title = strcase.ToCamel(lastPart)
+			}
+		}
+	}
+
+	if title == "" {
+		title = "Readability - MD"
+	}
+
+	return
 }
