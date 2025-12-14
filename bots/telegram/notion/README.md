@@ -28,6 +28,13 @@ go run . -config config.yaml
 
 `config.yaml` 内支持 `${TELEGRAM_TOKEN}` 这种写法，会在读取后做一次 `os.ExpandEnv` 展开。
 
+Notion Database 推荐属性（可在 `config.yaml` 里改名匹配你的 DB）：
+
+- 标题属性：默认 `Title`
+- `Created`：date 属性；写入时会填当前时间（按 `notion_tz`，默认 Asia/Shanghai）
+- `Visibility`：select 属性；写入时固定选择 `Private`
+- `Tags`：留空（不写入）
+
 ### 方式 2：环境变量
 
 必填：
@@ -37,7 +44,13 @@ export TELEGRAM_TOKEN=your-token
 
 export NOTION_TOKEN=your-token
 export NOTION_DATABASE_ID=your-database-id
-export NOTION_TITLE_PROP=Name   # 可选，默认 Name
+export NOTION_TITLE_PROP=Title   # 可选，默认 Title
+
+# 可选：如果你的 DB 属性名不同
+export NOTION_CREATED_PROP=Created
+export NOTION_VISIBILITY_PROP=Visibility
+export NOTION_VISIBILITY_VALUE=Private
+export NOTION_TZ=Asia/Shanghai
 
 export S3_ENDPOINT=https://<your-s3-endpoint>
 export S3_REGION=auto          # 兼容 R2/OSS，默认 auto

@@ -14,9 +14,13 @@ type Config struct {
 	TelegramToken            string `yaml:"telegram_token"`
 	TelegramDownloadMaxBytes int64  `yaml:"telegram_download_max_bytes"`
 
-	NotionToken     string `yaml:"notion_token"`
-	NotionDatabase  string `yaml:"notion_database_id"`
-	NotionTitleProp string `yaml:"notion_title_prop"`
+	NotionToken           string `yaml:"notion_token"`
+	NotionDatabase        string `yaml:"notion_database_id"`
+	NotionTitleProp       string `yaml:"notion_title_prop"`
+	NotionCreatedProp     string `yaml:"notion_created_prop"`
+	NotionVisibilityProp  string `yaml:"notion_visibility_prop"`
+	NotionVisibilityValue string `yaml:"notion_visibility_value"`
+	NotionTZ              string `yaml:"notion_tz"`
 
 	S3Endpoint        string `yaml:"s3_endpoint"`
 	S3Region          string `yaml:"s3_region"`
@@ -53,9 +57,13 @@ func defaultsFromEnv() Config {
 		TelegramToken:            os.Getenv("TELEGRAM_TOKEN"),
 		TelegramDownloadMaxBytes: 30 * 1024 * 1024,
 
-		NotionToken:     os.Getenv("NOTION_TOKEN"),
-		NotionDatabase:  os.Getenv("NOTION_DATABASE_ID"),
-		NotionTitleProp: firstNonEmpty(os.Getenv("NOTION_TITLE_PROP"), "Name"),
+		NotionToken:           os.Getenv("NOTION_TOKEN"),
+		NotionDatabase:        os.Getenv("NOTION_DATABASE_ID"),
+		NotionTitleProp:       firstNonEmpty(os.Getenv("NOTION_TITLE_PROP"), "Title"),
+		NotionCreatedProp:     firstNonEmpty(os.Getenv("NOTION_CREATED_PROP"), "Created"),
+		NotionVisibilityProp:  firstNonEmpty(os.Getenv("NOTION_VISIBILITY_PROP"), "Visibility"),
+		NotionVisibilityValue: firstNonEmpty(os.Getenv("NOTION_VISIBILITY_VALUE"), "Private"),
+		NotionTZ:              firstNonEmpty(os.Getenv("NOTION_TZ"), "Asia/Shanghai"),
 
 		S3Endpoint:        os.Getenv("S3_ENDPOINT"),
 		S3Region:          firstNonEmpty(os.Getenv("S3_REGION"), "auto"),
@@ -83,6 +91,18 @@ func applyEnvOverrides(cfg *Config) {
 	}
 	if v := strings.TrimSpace(os.Getenv("NOTION_TITLE_PROP")); v != "" {
 		cfg.NotionTitleProp = v
+	}
+	if v := strings.TrimSpace(os.Getenv("NOTION_CREATED_PROP")); v != "" {
+		cfg.NotionCreatedProp = v
+	}
+	if v := strings.TrimSpace(os.Getenv("NOTION_VISIBILITY_PROP")); v != "" {
+		cfg.NotionVisibilityProp = v
+	}
+	if v := strings.TrimSpace(os.Getenv("NOTION_VISIBILITY_VALUE")); v != "" {
+		cfg.NotionVisibilityValue = v
+	}
+	if v := strings.TrimSpace(os.Getenv("NOTION_TZ")); v != "" {
+		cfg.NotionTZ = v
 	}
 	if v := strings.TrimSpace(os.Getenv("S3_ENDPOINT")); v != "" {
 		cfg.S3Endpoint = v

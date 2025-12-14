@@ -3,6 +3,7 @@ package notion
 import (
 	"context"
 	"fmt"
+	"time"
 
 	"notionbot/internal/model"
 
@@ -10,17 +11,25 @@ import (
 )
 
 type Writer struct {
-	client    *notionapi.Client
-	database  notionapi.DatabaseID
-	titleProp string
+	client          *notionapi.Client
+	database        notionapi.DatabaseID
+	titleProp       string
+	createdProp     string
+	visibilityProp  string
+	visibilityValue string
+	loc             *time.Location
 }
 
-func NewWriter(token, databaseID, titleProp string) *Writer {
+func NewWriter(token, databaseID, titleProp, createdProp, visibilityProp, visibilityValue string, loc *time.Location) *Writer {
 	client := notionapi.NewClient(notionapi.Token(token))
 	return &Writer{
-		client:    client,
-		database:  notionapi.DatabaseID(databaseID),
-		titleProp: titleProp,
+		client:          client,
+		database:        notionapi.DatabaseID(databaseID),
+		titleProp:       titleProp,
+		createdProp:     createdProp,
+		visibilityProp:  visibilityProp,
+		visibilityValue: visibilityValue,
+		loc:             loc,
 	}
 }
 
@@ -28,10 +37,22 @@ func (n *Writer) CreateNotePage(ctx context.Context, title string, entries []mod
 	blocks := entriesToBlocks(entries)
 	first, rest := splitBlocks(blocks, 50)
 
-	props := notionapi.Properties{
-		n.titleProp: notionapi.TitleProperty{
-			Title: []notionapi.RichText{{Text: &notionapi.Text{Content: title}}},
-		},
+	props := notionapi.Properties{}
+	props[n.titleProp] = notionapi.TitleProperty{
+		Title: []notionapi.RichText{{Text: &notionapi.Text{Content: title}}},
+	}
+
+	// Optional fixed properties for your DB.
+	if n.createdProp != "" {
+		now := time.Now()
+		if n.loc != nil {
+			now = now.In(n.loc)
+		}
+		d := notionapi.Date(now)
+		props[n.createdProp] = notionapi.DateProperty{Date: &notionapi.DateObject{Start: &d}}
+	}
+	if n.visibilityProp != "" && n.visibilityValue != "" {
+		props[n.visibilityProp] = notionapi.SelectProperty{Select: notionapi.Option{Name: n.visibilityValue}}
 	}
 
 	resp, err := n.client.Page.Create(ctx, &notionapi.PageCreateRequest{
@@ -67,7 +88,7 @@ func entriesToBlocks(entries []model.Entry) []notionapi.Block {
 				continue
 			}
 			blocks = append(blocks, notionapi.ParagraphBlock{
-				BasicBlock: notionapi.BasicBlock{Type: notionapi.BlockTypeParagraph},
+				BasicBlock: notionapi.BasicBlock{Object: "block", Type: notionapi.BlockTypeParagraph},
 				Paragraph: notionapi.Paragraph{
 					RichText: []notionapi.RichText{{Text: &notionapi.Text{Content: e.Text}}},
 				},
@@ -77,7 +98,7 @@ func entriesToBlocks(entries []model.Entry) []notionapi.Block {
 				continue
 			}
 			blocks = append(blocks, notionapi.ImageBlock{
-				BasicBlock: notionapi.BasicBlock{Type: notionapi.BlockTypeImage},
+				BasicBlock: notionapi.BasicBlock{Object: "block", Type: notionapi.BlockTypeImage},
 				Image: notionapi.Image{
 					Type:     notionapi.FileTypeExternal,
 					External: &notionapi.FileObject{URL: e.URL},

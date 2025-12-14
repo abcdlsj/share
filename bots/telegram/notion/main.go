@@ -42,7 +42,8 @@ func main() {
 	if err != nil {
 		log.Fatal(err)
 	}
-	nw := notion.NewWriter(cfg.NotionToken, cfg.NotionDatabase, cfg.NotionTitleProp)
+	loc, _ := time.LoadLocation(cfg.NotionTZ)
+	nw := notion.NewWriter(cfg.NotionToken, cfg.NotionDatabase, cfg.NotionTitleProp, cfg.NotionCreatedProp, cfg.NotionVisibilityProp, cfg.NotionVisibilityValue, loc)
 	st := store.NewStateStore()
 	app := botapp.NewApp(botAPI, st, nw, s3u, cfg)
 

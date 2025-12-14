@@ -56,7 +56,7 @@ func NewS3Uploader(ctx context.Context, cfg config.Config) (*S3Uploader, error) 
 }
 
 func (u *S3Uploader) UploadPublic(ctx context.Context, chatID int64, r io.Reader, contentType string) (string, error) {
-	key := fmt.Sprintf("%s/%d/%s.jpg", u.keyPrefix, chatID, time.Now().UTC().Format("20060102T150405.000000000"))
+	key := fmt.Sprintf("%s_%d/%s.jpg", u.keyPrefix, chatID, time.Now().UTC().Format("20060102T150405.000000000"))
 
 	_, err := u.client.PutObject(ctx, &s3.PutObjectInput{
 		Bucket:      aws.String(u.bucket),

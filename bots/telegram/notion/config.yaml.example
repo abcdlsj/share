@@ -3,7 +3,11 @@ telegram_download_max_bytes: 31457280
 
 notion_token: "${NOTION_TOKEN}"
 notion_database_id: "${NOTION_DATABASE_ID}"
-notion_title_prop: "Name"
+notion_title_prop: "Title"
+notion_created_prop: "Created"
+notion_visibility_prop: "Visibility"
+notion_visibility_value: "Private"
+notion_tz: "Asia/Shanghai"
 
 s3_endpoint: "https://<your-s3-endpoint>"
 s3_region: "auto"
@@ -16,4 +20,3 @@ s3_force_path_style: true
 
 max_image_bytes: 4900000
 img_jpeg_min_quality: 45
-
