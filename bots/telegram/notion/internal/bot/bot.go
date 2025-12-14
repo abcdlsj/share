@@ -41,22 +41,6 @@ func (a *App) HandleUpdate(ctx context.Context, upd tgbotapi.Update) {
 		a.handleCommand(ctx, st, msg, msg.Command())
 		return
 	}
-	if msg.Text != "" {
-		switch strings.TrimSpace(msg.Text) {
-		case "开始":
-			a.handleCommand(ctx, st, msg, "begin")
-			return
-		case "结束":
-			a.handleCommand(ctx, st, msg, "end")
-			return
-		case "新随笔", "开启新随笔":
-			a.handleCommand(ctx, st, msg, "new")
-			return
-		case "取消":
-			a.handleCommand(ctx, st, msg, "cancel")
-			return
-		}
-	}
 
 	switch st.Phase {
 	case store.PhaseIdle:
@@ -66,7 +50,7 @@ func (a *App) HandleUpdate(ctx context.Context, upd tgbotapi.Update) {
 			a.flushWithTitle(ctx, chatID, st, title)
 			return
 		}
-		a.reply(chatID, "请输入标题（纯文本）。")
+		a.reply(chatID, "Please enter a title.")
 		return
 	case store.PhaseRecording:
 		if t := strings.TrimSpace(msg.Text); t != "" {
@@ -76,7 +60,7 @@ func (a *App) HandleUpdate(ctx context.Context, upd tgbotapi.Update) {
 		if len(msg.Photo) > 0 {
 			url, err := a.handlePhoto(ctx, chatID, msg.Photo)
 			if err != nil {
-				a.reply(chatID, "图片处理失败："+err.Error())
+				a.reply(chatID, "Image failed: "+err.Error())
 				return
 			}
 			st.Entries = append(st.Entries, model.Entry{Type: model.EntryImage, URL: url})
@@ -92,28 +76,28 @@ func (a *App) handleCommand(ctx context.Context, st *store.ChatContext, msg *tgb
 
 	switch cmd {
 	case "start", "help":
-		a.reply(chatID, "命令：/begin 开始记录，/end 结束并输入标题，/new flush 并开启新随笔。也支持直接发“开始/结束/新随笔”。")
+		a.reply(chatID, "/begin - start, /end - finish & set title, /new - flush & start new, /cancel - discard")
 		return
 	case "begin":
 		st.Phase = store.PhaseRecording
 		st.Entries = nil
 		st.EndedAt = time.Time{}
-		a.reply(chatID, "开始记录。直到 /end 之前的消息都会写入同一篇随笔。")
+		a.reply(chatID, "Recording started.")
 		return
 	case "end":
 		if st.Phase != store.PhaseRecording {
-			a.reply(chatID, "当前不在记录中。用 /begin 开始。")
+			a.reply(chatID, "Not recording. Use /begin first.")
 			return
 		}
 		st.Phase = store.PhaseAwaitTitle
 		st.EndedAt = time.Now()
-		a.reply(chatID, "已结束。请输入这篇随笔的标题（下一条消息作为标题）。")
+		a.reply(chatID, "Ended. Enter title:")
 		return
 	case "new":
 		if st.Phase != store.PhaseRecording {
 			st.Phase = store.PhaseRecording
 			st.Entries = nil
-			a.reply(chatID, "已开启新随笔（当前为空）。")
+			a.reply(chatID, "New note started.")
 			return
 		}
 		if len(st.Entries) > 0 {
@@ -121,13 +105,13 @@ func (a *App) handleCommand(ctx context.Context, st *store.ChatContext, msg *tgb
 		}
 		st.Phase = store.PhaseRecording
 		st.Entries = nil
-		a.reply(chatID, "已 flush 并开启新随笔。")
+		a.reply(chatID, "Flushed. New note started.")
 		return
 	case "cancel":
 		st.Phase = store.PhaseIdle
 		st.Entries = nil
 		st.EndedAt = time.Time{}
-		a.reply(chatID, "已取消并清空当前上下文。")
+		a.reply(chatID, "Cancelled.")
 		return
 	default:
 		return
@@ -137,21 +121,21 @@ func (a *App) handleCommand(ctx context.Context, st *store.ChatContext, msg *tgb
 func (a *App) flushWithTitle(ctx context.Context, chatID int64, st *store.ChatContext, title string) {
 	entries := append([]model.Entry(nil), st.Entries...)
 	if len(entries) == 0 {
-		a.reply(chatID, "当前没有内容可写入 Notion。")
+		a.reply(chatID, "No content to save.")
 		st.Phase = store.PhaseIdle
 		return
 	}
 
 	_, pageURL, err := a.notion.CreateNotePage(ctx, title, entries)
 	if err != nil {
-		a.reply(chatID, "写入 Notion 失败："+err.Error())
+		a.reply(chatID, "Notion error: "+err.Error())
 		return
 	}
 
 	st.Phase = store.PhaseIdle
 	st.Entries = nil
 	st.EndedAt = time.Time{}
-	a.reply(chatID, "已写入 Notion："+pageURL)
+	a.reply(chatID, "Saved: "+pageURL)
 }
 
 func (a *App) handlePhoto(ctx context.Context, chatID int64, photos []tgbotapi.PhotoSize) (string, error) {
@@ -198,5 +182,5 @@ func (a *App) reply(chatID int64, text string) {
 
 func defaultTitle() string {
 	loc := time.FixedZone("CST", 8*3600)
-	return "随笔 " + time.Now().In(loc).Format("2006-01-02 15:04")
+	return "Note " + time.Now().In(loc).Format("2006-01-02 15:04")
 }
