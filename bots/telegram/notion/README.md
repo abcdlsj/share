@@ -80,3 +80,7 @@ export IMG_JPEG_MIN_QUALITY=45
 go mod tidy
 go run .
 ```
+
+## Docker 运行
+
+`docker run --restart=unless-stopped -d -v $(pwd)/config.yaml:/config.yaml ghcr.io/abcdlsj/notion-bot:latest /notionbot -config /config.yaml`
