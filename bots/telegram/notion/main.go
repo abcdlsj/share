@@ -30,11 +30,11 @@ func main() {
 	}
 
 	_, _ = botAPI.Request(tgbotapi.NewSetMyCommands(
-		tgbotapi.BotCommand{Command: "begin", Description: "开始记录随笔"},
-		tgbotapi.BotCommand{Command: "end", Description: "结束并输入标题"},
-		tgbotapi.BotCommand{Command: "new", Description: "flush 当前并开启新随笔"},
-		tgbotapi.BotCommand{Command: "cancel", Description: "取消并清空当前上下文"},
-		tgbotapi.BotCommand{Command: "help", Description: "帮助"},
+		tgbotapi.BotCommand{Command: "begin", Description: "Start recording"},
+		tgbotapi.BotCommand{Command: "end", Description: "Finish & set title"},
+		tgbotapi.BotCommand{Command: "new", Description: "Flush & start new"},
+		tgbotapi.BotCommand{Command: "cancel", Description: "Discard current"},
+		tgbotapi.BotCommand{Command: "help", Description: "Help"},
 	))
 
 	ctx := context.Background()

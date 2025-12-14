@@ -29,6 +29,12 @@ func NewApp(botAPI *tgbotapi.BotAPI, st *store.StateStore, nw *notion.Writer, s3
 }
 
 func (a *App) HandleUpdate(ctx context.Context, upd tgbotapi.Update) {
+	// Handle callback queries (inline keyboard button clicks)
+	if upd.CallbackQuery != nil {
+		a.handleCallback(ctx, upd.CallbackQuery)
+		return
+	}
+
 	if upd.Message == nil {
 		return
 	}
@@ -38,12 +44,22 @@ func (a *App) HandleUpdate(ctx context.Context, upd tgbotapi.Update) {
 	st := a.store.Get(chatID)
 
 	if msg.IsCommand() {
-		a.handleCommand(ctx, st, msg, msg.Command())
+		a.handleCommand(ctx, st, chatID, msg.Command())
 		return
 	}
 
 	switch st.Phase {
 	case store.PhaseIdle:
+		// Auto-start recording when content is received
+		if msg.Text != "" || len(msg.Photo) > 0 {
+			st.Phase = store.PhaseRecording
+			st.Entries = nil
+			st.EndedAt = time.Time{}
+			if a.recordContent(ctx, chatID, st, msg) {
+				a.replyWithKeyboard(chatID, "✓ Recorded", a.recordingKeyboard())
+			}
+			return
+		}
 		return
 	case store.PhaseAwaitTitle:
 		if title := strings.TrimSpace(msg.Text); title != "" {
@@ -53,51 +69,72 @@ func (a *App) HandleUpdate(ctx context.Context, upd tgbotapi.Update) {
 		a.reply(chatID, "Please enter a title.")
 		return
 	case store.PhaseRecording:
-		if t := strings.TrimSpace(msg.Text); t != "" {
-			st.Entries = append(st.Entries, model.Entry{Type: model.EntryText, Text: t})
-		}
-
-		if len(msg.Photo) > 0 {
-			url, err := a.handlePhoto(ctx, chatID, msg.Photo)
-			if err != nil {
-				a.reply(chatID, "Image failed: "+err.Error())
-				return
-			}
-			st.Entries = append(st.Entries, model.Entry{Type: model.EntryImage, URL: url})
-			if c := strings.TrimSpace(msg.Caption); c != "" {
-				st.Entries = append(st.Entries, model.Entry{Type: model.EntryText, Text: c})
-			}
+		if a.recordContent(ctx, chatID, st, msg) {
+			a.replyWithKeyboard(chatID, "✓ Recorded", a.recordingKeyboard())
 		}
 	}
 }
 
-func (a *App) handleCommand(ctx context.Context, st *store.ChatContext, msg *tgbotapi.Message, cmd string) {
-	chatID := msg.Chat.ID
+func (a *App) recordContent(ctx context.Context, chatID int64, st *store.ChatContext, msg *tgbotapi.Message) bool {
+	recorded := false
 
+	if t := strings.TrimSpace(msg.Text); t != "" {
+		st.Entries = append(st.Entries, model.Entry{Type: model.EntryText, Text: t})
+		recorded = true
+	}
+
+	if len(msg.Photo) > 0 {
+		url, err := a.handlePhoto(ctx, chatID, msg.Photo)
+		if err != nil {
+			a.reply(chatID, "Image failed: "+err.Error())
+			return false
+		}
+		st.Entries = append(st.Entries, model.Entry{Type: model.EntryImage, URL: url})
+		recorded = true
+		if c := strings.TrimSpace(msg.Caption); c != "" {
+			st.Entries = append(st.Entries, model.Entry{Type: model.EntryText, Text: c})
+		}
+	}
+
+	return recorded
+}
+
+func (a *App) handleCallback(ctx context.Context, cq *tgbotapi.CallbackQuery) {
+	chatID := cq.Message.Chat.ID
+	st := a.store.Get(chatID)
+
+	// Acknowledge the callback
+	callback := tgbotapi.NewCallback(cq.ID, "")
+	_, _ = a.bot.Request(callback)
+
+	a.handleCommand(ctx, st, chatID, cq.Data)
+}
+
+func (a *App) handleCommand(ctx context.Context, st *store.ChatContext, chatID int64, cmd string) {
 	switch cmd {
 	case "start", "help":
-		a.reply(chatID, "/begin - start, /end - finish & set title, /new - flush & start new, /cancel - discard")
+		a.replyWithKeyboard(chatID, "Select action:", a.idleKeyboard())
 		return
 	case "begin":
 		st.Phase = store.PhaseRecording
 		st.Entries = nil
 		st.EndedAt = time.Time{}
-		a.reply(chatID, "Recording started.")
+		a.replyWithKeyboard(chatID, "Recording started.", a.recordingKeyboard())
 		return
 	case "end":
 		if st.Phase != store.PhaseRecording {
-			a.reply(chatID, "Not recording. Use /begin first.")
+			a.replyWithKeyboard(chatID, "Not recording.", a.idleKeyboard())
 			return
 		}
 		st.Phase = store.PhaseAwaitTitle
 		st.EndedAt = time.Now()
-		a.reply(chatID, "Ended. Enter title:")
+		a.reply(chatID, "Enter title:")
 		return
 	case "new":
 		if st.Phase != store.PhaseRecording {
 			st.Phase = store.PhaseRecording
 			st.Entries = nil
-			a.reply(chatID, "New note started.")
+			a.replyWithKeyboard(chatID, "New note started.", a.recordingKeyboard())
 			return
 		}
 		if len(st.Entries) > 0 {
@@ -105,17 +142,35 @@ func (a *App) handleCommand(ctx context.Context, st *store.ChatContext, msg *tgb
 		}
 		st.Phase = store.PhaseRecording
 		st.Entries = nil
-		a.reply(chatID, "Flushed. New note started.")
+		a.replyWithKeyboard(chatID, "Flushed. New note started.", a.recordingKeyboard())
 		return
 	case "cancel":
 		st.Phase = store.PhaseIdle
 		st.Entries = nil
 		st.EndedAt = time.Time{}
-		a.reply(chatID, "Cancelled.")
+		a.replyWithKeyboard(chatID, "Cancelled.", a.idleKeyboard())
 		return
 	default:
 		return
 	}
+}
+
+func (a *App) idleKeyboard() tgbotapi.InlineKeyboardMarkup {
+	return tgbotapi.NewInlineKeyboardMarkup(
+		tgbotapi.NewInlineKeyboardRow(
+			tgbotapi.NewInlineKeyboardButtonData("▶️ Begin", "begin"),
+		),
+	)
+}
+
+func (a *App) recordingKeyboard() tgbotapi.InlineKeyboardMarkup {
+	return tgbotapi.NewInlineKeyboardMarkup(
+		tgbotapi.NewInlineKeyboardRow(
+			tgbotapi.NewInlineKeyboardButtonData("⏹ End", "end"),
+			tgbotapi.NewInlineKeyboardButtonData("🔄 New", "new"),
+			tgbotapi.NewInlineKeyboardButtonData("❌ Cancel", "cancel"),
+		),
+	)
 }
 
 func (a *App) flushWithTitle(ctx context.Context, chatID int64, st *store.ChatContext, title string) {
@@ -178,6 +233,12 @@ func (a *App) handlePhoto(ctx context.Context, chatID int64, photos []tgbotapi.P
 
 func (a *App) reply(chatID int64, text string) {
 	_, _ = a.bot.Send(tgbotapi.NewMessage(chatID, text))
+}
+
+func (a *App) replyWithKeyboard(chatID int64, text string, keyboard tgbotapi.InlineKeyboardMarkup) {
+	msg := tgbotapi.NewMessage(chatID, text)
+	msg.ReplyMarkup = keyboard
+	_, _ = a.bot.Send(msg)
 }
 
 func defaultTitle() string {
