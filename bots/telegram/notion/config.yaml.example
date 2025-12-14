@@ -1,0 +1,19 @@
+telegram_token: "${TELEGRAM_TOKEN}"
+telegram_download_max_bytes: 31457280
+
+notion_token: "${NOTION_TOKEN}"
+notion_database_id: "${NOTION_DATABASE_ID}"
+notion_title_prop: "Name"
+
+s3_endpoint: "https://<your-s3-endpoint>"
+s3_region: "auto"
+s3_bucket: "your-bucket"
+s3_access_key_id: "xxx"
+s3_secret_access_key: "xxx"
+s3_public_base_url: "https://<public-base>/<optional-prefix>"
+s3_key_prefix: "telegram-notes"
+s3_force_path_style: true
+
+max_image_bytes: 4900000
+img_jpeg_min_quality: 45
+
